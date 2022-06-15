@@ -1,7 +1,55 @@
 # Raft
 
 Author: Justin Chen <<mail@justin0u0.com>>
+# Demo & Notes
+Author: Tachun Wu (always take LSD and write code)
+## Part A
+### appendEntries
+1. 先查 term 不是現在的 term (失敗)
+2. 刷新 heartbeat
+3/4. 如果 req.Term 比較大，要把自己變成 follower(記得刷新 term)
 
+### requestVote
+5. term 過期 (失敗)
+6. term 太新，把自己變成 follower
+7. 每個人只能投一次票，投了就要回失敗。還有log 比別人新就不能投票給別人(raft 設計新任 leader 必須要擁有最新的 log)
+8. 成功投票＋heartbeat
+
+### handleFollowerHeartbeatTimeout
+9. 心跳過期把自己轉換成 Candidate
+
+### voteForSelf
+10. 選舉開始先投給自己
+
+### broadcastRequestVote
+11. 灑出去給所有人，叫別人投票給自己(由於是concurrent的呼叫，用 voteCh 收回來的 response)
+
+### handleVoteResult
+12. 用投票交換的資訊看要不要把自己變成 follower
+13. 過半數就可以變成 leader
+
+### broadcastAppendEntries
+14. 對所有人送 AppendEntries，這邊比較有趣，空的就當作心跳所以會和 Part B 共用 API
+
+### handleAppendEntriesResult
+15. 檢查 term 遇到更新的就要轉成 follower
+## Part B
+### applyCommand
+1. 不是 Leader 就放棄處理。是 Leader 就寫入自己 Local Log，然後開使處理 appendLogs 
+
+### appendEntries
+2. 確認能不能對上 prevLogTerm 失敗就放棄
+3. 刪掉對不上 term 的 Log
+4. 插入新的 Log
+5. (重點) 根據 Leader 的 Commit Index 更新自己 Local 的 Commit Index，用 thread 寫Log。
+
+### broadcastAppendEntries
+6. 帶著 commitIndex, term, entries 廣播出去(和 heartbeat 共用 API)
+
+### handleAppendEntriesResult
+7. 判斷 AppendEntries 失敗的話就代表 Log 對不上，退後一格重送 Log
+8. 成功的話，更新 nextIndex, matchIndex (有提供 API 針對 peer 個別管理)
+9. (重點) 這邊要統計成功的 Replica 要多少個，如果過半就可以 commitIndex，如果已經答標了就可以繼續(注意卡死的問題，等全到好像跑不過)
 # Goal
 
 This is a Raft implementation providing with a template code (at branch `template`) with well designed structure, 10 test cases for verifying your implementation.
